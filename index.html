@@ -877,39 +877,49 @@ function closeSubpageOutside(e) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSubpage(); closeAdmin(); } });
 
 // ══════════════════════════════════════
-// AI-POWERED DIGITAL TWIN
+// KNOWLEDGE BASE (built-in + user-added)
 // ══════════════════════════════════════
-const API_KEY = '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';
+const defaultKB = {
+  "你现在在做什么": "我最近在学习用 AI 搭建属于自己的网页，同时也在整理自己的技能清单和一些关于自己的 Fun Facts。另外也在梳理自己的人生轨迹，写一些思考和有趣的想法。",
+  "怎么联系": "你可以通过微信或者邮件联系我哦～具体的联系方式可以直接问本人，这里不方便公开 😄",
+  "技能": "我的主要技能包括：数据分析、算法策略制定、逻辑梳理，以及把复杂的事情讲得简单易懂。最近也在学习 AI 相关的工具和前端搭建。作品方面，这个个人主页就是我正在做的项目之一！",
+  "职业": "我目前是一名算法策略分析师，日常工作涉及数据分析和策略优化。",
+  "兴趣": "我喜欢做饭和做甜品 🍰，也喜欢看风景发呆。我觉得在忙碌之余找到让自己放松的方式很重要。你可以点击上面的兴趣卡片看看更多内容～",
+  "擅长": "我擅长数据分析、逻辑梳理，还有一个比较特别的点——我很喜欢把复杂的东西讲得通俗易懂，我觉得这是一件很酷的事情。",
+  "故事": "我喜欢来自天南海北的故事！不同的人、不同的经历，都让我觉得这个世界很有趣。如果你有什么好故事，欢迎跟我分享～",
+  "ai": "我最近在探索用 AI 做一些很酷的东西，比如搭建个人网页、自动化工作流等。我相信 AI 可以帮助每个人放大自己的能力。",
+  "自我介绍": "我叫易上宁，是一名算法策略分析师。正在学习用 AI 做一些很酷的东西。我喜欢做饭、做甜品、看风景发呆。我觉得把复杂的东西讲得通俗易懂是一件很酷的事情 😊"
+};
 
-const SYSTEM_PROMPT = `你是易上宁（Shangning Yi）的数字分身，在她的个人主页上和访客聊天。你要模拟她本人的语气来回答问题——友好、温暖、自然，像朋友之间聊天一样，偶尔带一点幽默感。
+const matchRules = [
+  { keys: ["在做什么", "最近", "近况", "忙什么"], id: "你现在在做什么" },
+  { keys: ["联系", "微信", "邮箱", "email", "contact"], id: "怎么联系" },
+  { keys: ["技能", "作品", "会什么", "能力", "项目", "portfolio"], id: "技能" },
+  { keys: ["职业", "工作", "职位", "身份", "干什么的"], id: "职业" },
+  { keys: ["兴趣", "爱好", "喜欢做", "hobby"], id: "兴趣" },
+  { keys: ["擅长", "强项", "特长", "优势"], id: "擅长" },
+  { keys: ["故事", "经历", "天南海北"], id: "故事" },
+  { keys: ["ai", "人工智能", "学习"], id: "ai" },
+  { keys: ["你是谁", "自我介绍", "介绍一下", "关于你"], id: "自我介绍" },
+];
 
-【关于上宁的信息】
-- 身份：算法策略分析师
-- 学历：University of Rochester Simon Business School 硕士（Business Analytics）；University of Arizona Eller College of Management 本科（Management Information Systems）
-- 一句话介绍：一个正在学习 AI 做一些很酷的东西的数据分析师
-- 现在主要在做：用 AI 搭建属于自己的网页，整理自己的技能和 Fun Facts，梳理人生轨迹，写一些思考和有趣的想法
-- 兴趣：做饭、做甜品、看风景发呆
-- 擅长：数据分析、逻辑梳理、把复杂的东西讲得通俗易懂
-- 特点：觉得把复杂的东西讲得通俗易懂是一件很酷的事情，喜欢来自天南海北的故事
-- 关于联系方式：可以引导对方直接联系本人，这里不方便公开具体联系方式
+// Load custom answers from storage
+function getCustomKB() {
+  try { return JSON.parse(localStorage.getItem('sn_custom_kb') || '{}'); } catch { return {}; }
+}
+function saveCustomKB(kb) {
+  localStorage.setItem('sn_custom_kb', JSON.stringify(kb));
+}
 
-【回答风格要求】
-- 用中文回答，语气自然亲切，像朋友聊天
-- 回答简洁，一般 2-4 句话，不要太长
-- 可以适当用 emoji，但不要过多
-- 如果被问到不了解的事情，诚实说不太清楚，建议直接联系本人
-- 不要编造上宁没有提到的信息
-- 不要用"作为AI"这样的表述，你就是上宁的数字分身`;
-
-let chatHistory = [];
-
-// Question collection (still works)
+// Load collected questions
 function getCollectedQs() {
   try { return JSON.parse(localStorage.getItem('sn_collected_qs') || '[]'); } catch { return []; }
 }
 function saveCollectedQs(qs) {
   localStorage.setItem('sn_collected_qs', JSON.stringify(qs));
 }
+
+// Collect a question
 function collectQuestion(text) {
   const qs = getCollectedQs();
   const existing = qs.find(q => q.text === text);
@@ -922,63 +932,30 @@ function collectQuestion(text) {
   saveCollectedQs(qs);
 }
 
-// Custom KB still works as priority override
-function getCustomKB() {
-  try { return JSON.parse(localStorage.getItem('sn_custom_kb') || '{}'); } catch { return {}; }
-}
-function saveCustomKB(kb) {
-  localStorage.setItem('sn_custom_kb', JSON.stringify(kb));
-}
-function matchCustomKB(text) {
+function matchKB(text) {
   const t = text.toLowerCase();
+  // First check custom KB (exact substring match on keys)
   const customKB = getCustomKB();
   for (const [question, answer] of Object.entries(customKB)) {
     if (t.includes(question.toLowerCase()) || question.toLowerCase().includes(t)) {
       return answer;
     }
   }
+  // Then check default rules
+  for (const rule of matchRules) {
+    if (rule.keys.some(k => t.includes(k))) return defaultKB[rule.id];
+  }
   return null;
 }
 
-async function getAIReply(userText) {
-  // Priority: custom KB answers first
-  const customMatch = matchCustomKB(userText);
-  if (customMatch) return customMatch;
+const fallbacks = [
+  "这个问题很好！我已经记下来了，上宁本人会尽快来回答你～ 😊",
+  "嗯，这个我得让本人来回答。问题已记录，敬请期待～",
+  "我的知识库里暂时没有答案，但上宁会看到你的提问的！换个问题也可以哦～"
+];
 
-  // Otherwise use AI
-  chatHistory.push({ role: 'user', content: userText });
-  // Keep history manageable (last 10 exchanges)
-  if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        system: SYSTEM_PROMPT,
-        messages: chatHistory
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('API request failed');
-    }
-
-    const data = await response.json();
-    const reply = data.content.map(c => c.text || '').join('');
-    chatHistory.push({ role: 'assistant', content: reply });
-    return reply;
-  } catch (error) {
-    console.error('AI error:', error);
-    return '啊，我的大脑好像短路了一下 😅 你可以再问一次试试，或者换个问题～';
-  }
+function getReply(text) {
+  return matchKB(text) || fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }
 
 // ── Chat Logic ──
@@ -1006,7 +983,7 @@ function hideTyping() {
 }
 
 let isSending = false;
-async function sendMsg() {
+function sendMsg() {
   const text = inputEl.value.trim();
   if (!text || isSending) return;
   isSending = true;
@@ -1018,12 +995,13 @@ async function sendMsg() {
   collectQuestion(text);
 
   showTyping();
-  const reply = await getAIReply(text);
-  hideTyping();
-  addMsg(reply, 'bot');
-  isSending = false;
-  sendBtnEl.disabled = false;
-  inputEl.focus();
+  setTimeout(() => {
+    hideTyping();
+    addMsg(getReply(text), 'bot');
+    isSending = false;
+    sendBtnEl.disabled = false;
+    inputEl.focus();
+  }, 600 + Math.random() * 800);
 }
 
 function askQuick(btn) {
